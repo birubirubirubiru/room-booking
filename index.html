@@ -1,0 +1,801 @@
+<!DOCTYPE html>
+<html lang="id">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Room Booking — Kantor</title>
+  <style>
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    :root {
+      --teal-50: #E1F5EE; --teal-100: #9FE1CB; --teal-400: #1D9E75; --teal-600: #0F6E56;
+      --coral-50: #FAECE7; --coral-100: #F5C4B3; --coral-600: #993C1D;
+      --amber-50: #FAEEDA; --blue-50: #E6F1FB; --blue-600: #185FA5; --red-400: #E24B4A;
+      --bg: #F7F7F5; --surface: #FFFFFF;
+      --border: rgba(0,0,0,0.1); --border-md: rgba(0,0,0,0.18);
+      --text-primary: #1C1C1A; --text-secondary: #6B6B68; --text-muted: #9B9B98;
+      --radius-md: 8px; --radius-lg: 12px; --radius-xl: 16px;
+    }
+    body { font-family: 'Segoe UI', system-ui, -apple-system, sans-serif; background: var(--bg); color: var(--text-primary); min-height: 100vh; }
+    svg.icon    { width:16px;height:16px;display:inline-block;vertical-align:middle;flex-shrink:0;fill:none;stroke:currentColor;stroke-width:2;stroke-linecap:round;stroke-linejoin:round; }
+    svg.icon-sm { width:14px;height:14px; }
+    svg.icon-lg { width:20px;height:20px; }
+
+    /* ── CONFIG BANNER ── */
+    .config-banner { background:#FAEEDA; border-bottom:1px solid #FAC775; padding:10px 2rem; display:flex; align-items:center; gap:10px; font-size:13px; color:#633806; }
+    .config-banner input { flex:1; padding:6px 10px; border:1px solid #FAC775; border-radius:6px; font-size:13px; font-family:inherit; background:#fff; color:#1C1C1A; outline:none; min-width:0; }
+    .config-banner input:focus { border-color:#BA7517; }
+    .config-save-btn { padding:6px 14px; background:#BA7517; color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:13px; font-weight:600; font-family:inherit; white-space:nowrap; }
+    .config-save-btn:hover { background:#854F0B; }
+    .config-banner.connected { background:#E1F5EE; border-color:#9FE1CB; color:#0F6E56; }
+    .config-banner.connected input { border-color:#9FE1CB; }
+    .config-banner.connected .config-save-btn { background:#1D9E75; }
+    .config-banner.connected .config-save-btn:hover { background:#0F6E56; }
+
+    /* ── LOADING OVERLAY ── */
+    .loading-overlay { position:fixed; inset:0; background:rgba(255,255,255,0.85); z-index:500; display:flex; flex-direction:column; align-items:center; justify-content:center; gap:12px; }
+    .loading-overlay.hidden { display:none; }
+    .spinner { width:36px;height:36px;border:3px solid var(--teal-100);border-top-color:var(--teal-400);border-radius:50%;animation:spin 0.8s linear infinite; }
+    @keyframes spin { to { transform:rotate(360deg); } }
+    .loading-overlay p { font-size:14px;color:var(--text-secondary); }
+
+    /* ── HEADER ── */
+    .app-header { background:var(--surface);border-bottom:0.5px solid var(--border);padding:0 2rem;display:flex;align-items:center;justify-content:space-between;height:60px;position:sticky;top:0;z-index:100; }
+    .logo { display:flex;align-items:center;gap:10px;font-size:17px;font-weight:600; }
+    .logo-icon { width:34px;height:34px;background:var(--teal-400);border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;color:#fff; }
+    .header-right { display:flex;align-items:center;gap:10px; }
+    .header-date { font-size:13px;color:var(--text-secondary);background:var(--bg);padding:5px 12px;border-radius:var(--radius-md); }
+    .sync-btn { display:flex;align-items:center;gap:5px;padding:5px 12px;border-radius:var(--radius-md);border:0.5px solid var(--border-md);background:transparent;cursor:pointer;font-size:12px;color:var(--text-secondary);font-family:inherit;transition:all 0.12s; }
+    .sync-btn:hover { background:var(--bg);color:var(--text-primary); }
+    .sync-btn svg { transition:transform 0.5s; }
+    .sync-btn.syncing svg { animation:spin 0.8s linear infinite; }
+    .conn-dot { width:8px;height:8px;border-radius:50%;flex-shrink:0; }
+    .conn-dot.ok { background:#1D9E75; }
+    .conn-dot.err { background:#E24B4A; }
+    .conn-dot.pending { background:#BA7517; }
+
+    .container { max-width:960px;margin:0 auto;padding:2rem 1.5rem; }
+
+    /* ── TABS ── */
+    .tabs { display:flex;gap:6px;margin-bottom:1.75rem;background:var(--surface);padding:6px;border-radius:var(--radius-lg);border:0.5px solid var(--border);width:fit-content; }
+    .tab { padding:8px 18px;border-radius:var(--radius-md);font-size:14px;font-weight:400;border:none;background:transparent;cursor:pointer;color:var(--text-secondary);transition:all 0.15s;display:flex;align-items:center;gap:7px;font-family:inherit; }
+    .tab.active { background:var(--teal-400);color:#fff;font-weight:500; }
+    .tab:not(.active):hover { background:var(--bg);color:var(--text-primary); }
+    .section { display:none; } .section.active { display:block; }
+    .page-heading { margin-bottom:1.25rem; }
+    .page-heading h2 { font-size:20px;font-weight:600; }
+    .page-heading p { font-size:14px;color:var(--text-secondary);margin-top:3px; }
+
+    /* ── VIEW TOGGLE ── */
+    .view-toggle { display:flex;gap:0;background:var(--bg);border:0.5px solid var(--border-md);border-radius:var(--radius-md);overflow:hidden; }
+    .vt-btn { padding:7px 14px;border:none;background:transparent;cursor:pointer;font-size:13px;color:var(--text-secondary);font-family:inherit;display:flex;align-items:center;gap:5px;transition:all 0.12s; }
+    .vt-btn.active { background:var(--teal-400);color:#fff;font-weight:500; }
+    .vt-btn:not(.active):hover { background:var(--border); }
+
+    .jadwal-topbar { display:flex;align-items:center;justify-content:space-between;gap:12px;margin-bottom:1.25rem;flex-wrap:wrap; }
+    .date-nav { display:flex;align-items:center;gap:10px;background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:8px 14px;flex:1;min-width:200px; }
+    .nav-btn { width:32px;height:32px;border-radius:50%;border:0.5px solid var(--border-md);background:transparent;cursor:pointer;color:var(--text-secondary);display:flex;align-items:center;justify-content:center;transition:background 0.12s;font-family:inherit;flex-shrink:0; }
+    .nav-btn:hover { background:var(--bg); }
+    .date-label { font-size:15px;font-weight:600;flex:1;text-align:center; }
+    .today-btn { font-size:12px;padding:4px 10px;border-radius:var(--radius-md);border:0.5px solid var(--teal-400);background:var(--teal-50);color:var(--teal-600);cursor:pointer;font-weight:500;font-family:inherit;white-space:nowrap; }
+    .today-btn:hover { background:var(--teal-100); }
+
+    /* ── ROOMS ── */
+    .rooms-grid { display:grid;grid-template-columns:repeat(auto-fit,minmax(165px,1fr));gap:10px;margin-bottom:1.5rem; }
+    .room-card { background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:12px 14px;cursor:pointer;transition:all 0.15s; }
+    .room-card:hover { border-color:var(--teal-400); }
+    .room-card.selected { border:2px solid var(--teal-400);background:var(--teal-50); }
+    .room-header { display:flex;align-items:center;gap:8px;margin-bottom:6px; }
+    .room-dot { width:10px;height:10px;border-radius:50%;flex-shrink:0; }
+    .room-name { font-size:14px;font-weight:600; }
+    .room-meta { font-size:12px;color:var(--text-secondary);display:flex;align-items:center;gap:4px; }
+    .room-avail { font-size:11px;margin-top:5px;font-weight:500; }
+    .room-avail.ok { color:var(--teal-400); } .room-avail.partial { color:#BA7517; }
+
+    /* ── TIMELINE ── */
+    .timeline-wrap { background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-lg);overflow:hidden; }
+    .timeline-header-bar { padding:12px 16px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--text-secondary); }
+    .timeline-header-bar strong { color:var(--text-primary);font-weight:600; }
+    .tl-hint { display:flex;align-items:center;gap:4px; }
+    .timeline-body { padding:12px 16px; }
+    .time-row { display:flex;align-items:center;margin-bottom:5px; }
+    .time-label { width:50px;font-size:12px;color:var(--text-muted);flex-shrink:0; }
+    .slot-track { flex:1; }
+    .slot { width:100%;height:38px;border-radius:var(--radius-md);cursor:pointer;transition:all 0.15s;display:flex;align-items:center;justify-content:center;font-size:12px;font-weight:500;gap:6px;border:none;font-family:inherit; }
+    .slot.free { background:var(--teal-50);color:var(--teal-600);border:0.5px solid var(--teal-100); }
+    .slot.free:hover { background:var(--teal-400);color:#fff;transform:scaleY(1.04); }
+    .slot.booked { background:var(--coral-50);color:var(--coral-600);border:0.5px solid var(--coral-100);cursor:default; }
+    .legend { display:flex;gap:18px;padding:10px 16px;border-top:0.5px solid var(--border);font-size:12px;color:var(--text-secondary);flex-wrap:wrap; }
+    .legend-item { display:flex;align-items:center;gap:6px; }
+    .legend-box { width:14px;height:14px;border-radius:4px;flex-shrink:0; }
+
+    /* ── CALENDAR ── */
+    .calendar-wrap { background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-lg);overflow:hidden; }
+    .cal-header { padding:12px 16px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between;font-size:13px;color:var(--text-secondary); }
+    .cal-header strong { color:var(--text-primary);font-weight:600; }
+    .cal-grid { display:grid;grid-template-columns:repeat(7,1fr); }
+    .cal-dayname { text-align:center;font-size:11px;font-weight:600;color:var(--text-muted);padding:10px 4px 8px;text-transform:uppercase;letter-spacing:0.05em;border-bottom:0.5px solid var(--border); }
+    .cal-dayname.weekend { color:var(--coral-600); }
+    .cal-cell { min-height:80px;border-right:0.5px solid var(--border);border-bottom:0.5px solid var(--border);padding:6px;cursor:pointer;transition:background 0.12s;position:relative; }
+    .cal-cell:nth-child(7n) { border-right:none; }
+    .cal-cell:hover:not(.other-month) { background:#f0faf5; }
+    .cal-cell.other-month { background:var(--bg);cursor:default; }
+    .cal-cell.other-month .cal-day-num { color:var(--text-muted); }
+    .cal-cell.today-cell { background:var(--teal-50); }
+    .cal-cell.selected-cell { background:#e0f5ec;outline:2px solid var(--teal-400);outline-offset:-2px; }
+    .cal-day-num { font-size:13px;font-weight:600;color:var(--text-primary);margin-bottom:4px;width:24px;height:24px;display:flex;align-items:center;justify-content:center;border-radius:50%; }
+    .cal-cell.today-cell .cal-day-num { background:var(--teal-400);color:#fff; }
+    .cal-cell.weekend-cell .cal-day-num { color:#c0392b; }
+    .cal-event { font-size:10px;font-weight:500;padding:2px 5px;border-radius:4px;margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;line-height:1.4; }
+    .cal-event.mawar { background:#fde8e8;color:#8b1a1a; }
+    .cal-event.melati { background:#fce4ef;color:#7b1d44; }
+    .cal-event.kenanga { background:#e0f7ee;color:#0a5c3c; }
+    .cal-more { font-size:10px;color:var(--text-muted);margin-top:1px; }
+    .day-detail { background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-lg);margin-top:12px;overflow:hidden;animation:slideDown 0.2s ease; }
+    @keyframes slideDown { from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:translateY(0)} }
+    .day-detail-header { padding:12px 16px;border-bottom:0.5px solid var(--border);display:flex;align-items:center;justify-content:space-between; }
+    .day-detail-header strong { font-size:14px; }
+    .day-detail-close { width:28px;height:28px;border-radius:50%;border:0.5px solid var(--border-md);background:transparent;cursor:pointer;display:flex;align-items:center;justify-content:center;color:var(--text-secondary);font-family:inherit; }
+    .day-detail-close:hover { background:var(--bg); }
+    .day-detail-body { padding:12px 16px;display:grid;grid-template-columns:repeat(auto-fit,minmax(220px,1fr));gap:8px; }
+    .dd-room { background:var(--bg);border-radius:var(--radius-md);padding:10px 12px; }
+    .dd-room-title { font-size:12px;font-weight:600;margin-bottom:6px;display:flex;align-items:center;gap:6px; }
+    .dd-slot-row { font-size:11px;display:flex;align-items:center;gap:6px;margin-bottom:4px; }
+    .dd-dot { width:7px;height:7px;border-radius:50%;flex-shrink:0; }
+    .dd-slot-free { color:var(--teal-600); }
+    .dd-slot-booked { color:var(--coral-600); }
+    .dd-book-btn { margin-top:8px;width:100%;padding:6px;border-radius:var(--radius-md);border:0.5px solid var(--teal-400);background:var(--teal-50);color:var(--teal-600);font-size:12px;font-weight:500;cursor:pointer;font-family:inherit;transition:all 0.12s; }
+    .dd-book-btn:hover { background:var(--teal-400);color:#fff; }
+
+    /* ── FORM ── */
+    .form-grid { display:grid;grid-template-columns:1fr 1fr;gap:1.5rem; }
+    @media(max-width:620px){ .form-grid{grid-template-columns:1fr;} }
+    .form-card { background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-xl);padding:1.5rem; }
+    .form-section-title { font-size:13px;font-weight:600;color:var(--text-secondary);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:1rem; }
+    .field { margin-bottom:1rem; } .field:last-child { margin-bottom:0; }
+    .field label { display:block;font-size:13px;font-weight:500;color:var(--text-secondary);margin-bottom:6px; }
+    .field input,.field select,.field textarea { width:100%;padding:10px 12px;border:0.5px solid var(--border-md);border-radius:var(--radius-md);font-size:14px;font-family:inherit;background:var(--surface);color:var(--text-primary);outline:none;transition:border-color .15s,box-shadow .15s;-webkit-appearance:none;appearance:none; }
+    .field select { background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%236B6B68' stroke-width='2.5' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'/%3E%3C/svg%3E");background-repeat:no-repeat;background-position:right 12px center;padding-right:32px; }
+    .field input:focus,.field select:focus,.field textarea:focus { border-color:var(--teal-400);box-shadow:0 0 0 3px var(--teal-50); }
+    .field textarea { resize:vertical;min-height:80px; }
+    .row2 { display:grid;grid-template-columns:1fr 1fr;gap:10px; }
+    .btn-submit { width:100%;padding:12px;background:var(--teal-400);color:#fff;border:none;border-radius:var(--radius-md);font-size:15px;font-weight:600;cursor:pointer;transition:background .15s,transform .1s;display:flex;align-items:center;justify-content:center;gap:8px;margin-top:1.25rem;font-family:inherit; }
+    .btn-submit:hover { background:var(--teal-600); } .btn-submit:active { transform:scale(0.98); }
+    .btn-submit:disabled { background:#9FE1CB;cursor:not-allowed; }
+    .preview-card { background:var(--bg);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:1rem; }
+    .preview-card .pv-title { font-size:13px;font-weight:600;color:var(--text-secondary);margin-bottom:10px; }
+    .preview-row { display:flex;align-items:center;gap:8px;font-size:13px;color:var(--text-secondary);margin-bottom:7px; }
+    .preview-row svg { color:var(--teal-400);flex-shrink:0; }
+    .preview-row span { color:var(--text-primary);font-weight:500; }
+
+    /* ── RIWAYAT ── */
+    .filter-bar { display:flex;gap:8px;margin-bottom:1rem;flex-wrap:wrap; }
+    .filter-btn { padding:6px 14px;border-radius:var(--radius-md);border:0.5px solid var(--border-md);background:var(--surface);font-size:13px;cursor:pointer;color:var(--text-secondary);transition:all .12s;font-family:inherit; }
+    .filter-btn.active { background:var(--teal-400);color:#fff;border-color:var(--teal-400);font-weight:500; }
+    .filter-btn:not(.active):hover { background:var(--bg); }
+    .stats-bar { display:grid;grid-template-columns:repeat(3,1fr);gap:10px;margin-bottom:1.5rem; }
+    .stat-card { background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:1rem 1.25rem;text-align:center; }
+    .stat-card.highlight { background:var(--teal-50);border-color:var(--teal-100); }
+    .stat-card.highlight .stat-number { color:var(--teal-400); }
+    .stat-number { font-size:26px;font-weight:700; }
+    .stat-label { font-size:12px;color:var(--text-secondary);margin-top:3px; }
+    .booking-list { display:flex;flex-direction:column;gap:10px; }
+    .booking-item { background:var(--surface);border:0.5px solid var(--border);border-radius:var(--radius-lg);padding:1rem 1.25rem;display:flex;align-items:center;gap:14px;transition:box-shadow .15s; }
+    .booking-item:hover { box-shadow:0 2px 12px rgba(0,0,0,.06); }
+    .booking-icon { width:44px;height:44px;border-radius:var(--radius-md);display:flex;align-items:center;justify-content:center;flex-shrink:0; }
+    .bi-green { background:var(--teal-50);color:var(--teal-400); }
+    .bi-amber { background:var(--amber-50);color:#BA7517; }
+    .bi-blue  { background:var(--blue-50);color:var(--blue-600); }
+    .booking-info { flex:1;min-width:0; }
+    .b-title { font-size:14px;font-weight:600;white-space:nowrap;overflow:hidden;text-overflow:ellipsis; }
+    .b-sub { font-size:12px;color:var(--text-secondary);margin-top:3px;display:flex;align-items:center;gap:6px;flex-wrap:wrap; }
+    .booking-status { font-size:11px;padding:4px 10px;border-radius:var(--radius-md);font-weight:600;white-space:nowrap; }
+    .status-ok { background:var(--teal-50);color:var(--teal-600); }
+    .status-cancel { background:var(--coral-50);color:var(--coral-600); }
+    .cancel-btn { padding:6px 8px;border-radius:var(--radius-md);border:0.5px solid var(--border-md);background:transparent;cursor:pointer;color:var(--text-secondary);font-family:inherit;transition:all .12s;display:flex;align-items:center;justify-content:center;margin-left:4px; }
+    .cancel-btn:hover { background:var(--coral-50);color:var(--coral-600);border-color:var(--coral-100); }
+    .empty-state { text-align:center;padding:3rem 1rem;color:var(--text-muted); }
+    .empty-state p { font-size:14px;margin-top:12px; }
+
+    .toast { position:fixed;bottom:24px;right:24px;padding:12px 20px;border-radius:var(--radius-lg);font-size:14px;font-weight:500;color:#fff;opacity:0;transform:translateY(12px);transition:all .3s cubic-bezier(.34,1.56,.64,1);pointer-events:none;z-index:9999;box-shadow:0 4px 20px rgba(0,0,0,.15); }
+    .toast.show { opacity:1;transform:translateY(0); }
+    .toast.success { background:var(--teal-400); } .toast.error { background:var(--red-400); } .toast.info { background:#378ADD; }
+
+    @media(max-width:600px){
+      .app-header{padding:0 1rem;} .container{padding:1rem;}
+      .stats-bar{grid-template-columns:1fr 1fr;} .stats-bar .stat-card:last-child{grid-column:span 2;}
+      .cal-cell{min-height:56px;padding:4px 3px;} .cal-event{display:none;}
+      .config-banner{flex-wrap:wrap;}
+    }
+  </style>
+</head>
+<body>
+
+<!-- ── CONFIG BANNER ── -->
+<div class="config-banner" id="config-banner">
+  <svg class="icon-sm" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.07 4.93a10 10 0 010 14.14M4.93 4.93a10 10 0 000 14.14"/></svg>
+  <span style="white-space:nowrap;font-weight:600;">URL Apps Script:</span>
+  <input type="text" id="api-url-input" placeholder="Paste URL Web App dari Google Apps Script di sini..." />
+  <button class="config-save-btn" onclick="saveApiUrl()">Simpan &amp; Hubungkan</button>
+</div>
+
+<!-- ── LOADING OVERLAY ── -->
+<div class="loading-overlay hidden" id="loading-overlay">
+  <div class="spinner"></div>
+  <p id="loading-msg">Memuat data...</p>
+</div>
+
+<!-- ── HEADER ── -->
+<header class="app-header">
+  <div class="logo">
+    <div class="logo-icon">
+      <svg class="icon-lg" fill="none" stroke="#fff" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 22V12h6v10M8 7h1m3 0h1m-5 4h1m3 0h1"/></svg>
+    </div>
+    Room Booking
+  </div>
+  <div class="header-right">
+    <span class="conn-dot pending" id="conn-dot" title="Belum terhubung"></span>
+    <button class="sync-btn" id="sync-btn" onclick="syncData()" title="Sinkronisasi data dari spreadsheet">
+      <svg class="icon-sm" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M23 4v6h-6"/><path d="M1 20v-6h6"/><path d="M3.51 9a9 9 0 0114.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0020.49 15"/></svg>
+      Sync
+    </button>
+    <span class="header-date" id="header-date-display"></span>
+  </div>
+</header>
+
+<div class="container">
+  <div class="tabs" role="tablist">
+    <button class="tab active" onclick="switchTab('jadwal')">
+      <svg class="icon-sm" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Jadwal
+    </button>
+    <button class="tab" onclick="switchTab('booking')">
+      <svg class="icon-sm" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>Booking
+    </button>
+    <button class="tab" onclick="switchTab('riwayat')">
+      <svg class="icon-sm" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M5 6v.01M5 12v.01M5 18v.01"/></svg>Riwayat
+    </button>
+  </div>
+
+  <!-- ═══ JADWAL ═══ -->
+  <div class="section active" id="sec-jadwal">
+    <div class="page-heading"><h2>Jadwal Ruangan</h2><p>Lihat ketersediaan ruangan harian maupun bulanan</p></div>
+    <div class="jadwal-topbar">
+      <div class="date-nav">
+        <button class="nav-btn" onclick="navPrev()"><svg class="icon" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M15 18l-6-6 6-6"/></svg></button>
+        <span class="date-label" id="date-label">—</span>
+        <button class="nav-btn" onclick="navNext()"><svg class="icon" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M9 18l6-6-6-6"/></svg></button>
+        <button class="today-btn" onclick="goToday()">Hari ini</button>
+      </div>
+      <div class="view-toggle">
+        <button class="vt-btn active" id="vt-harian" onclick="setView('harian')">
+          <svg class="icon-sm" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M9 6h11M9 12h11M9 18h11M5 6v.01M5 12v.01M5 18v.01"/></svg>Harian
+        </button>
+        <button class="vt-btn" id="vt-bulanan" onclick="setView('bulanan')">
+          <svg class="icon-sm" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>Bulanan
+        </button>
+      </div>
+    </div>
+    <div class="rooms-grid" id="rooms-grid"></div>
+    <div id="view-harian">
+      <div class="timeline-wrap">
+        <div class="timeline-header-bar">
+          <span><strong id="tl-room-name">—</strong> — Ketersediaan Slot</span>
+          <span class="tl-hint"><svg class="icon-sm" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 8v.01M12 12v4"/></svg> Klik slot hijau untuk booking</span>
+        </div>
+        <div class="timeline-body" id="timeline"></div>
+        <div class="legend">
+          <div class="legend-item"><div class="legend-box" style="background:#E1F5EE;border:.5px solid #9FE1CB;"></div>Tersedia</div>
+          <div class="legend-item"><div class="legend-box" style="background:#FAECE7;border:.5px solid #F5C4B3;"></div>Terisi</div>
+        </div>
+      </div>
+    </div>
+    <div id="view-bulanan" style="display:none;">
+      <div class="calendar-wrap">
+        <div class="cal-header">
+          <strong id="cal-month-label">—</strong>
+          <div class="legend" style="border:none;padding:0;gap:12px;">
+            <div class="legend-item"><div class="legend-box" style="background:#fde8e8;border:.5px solid #f5c4b3;"></div>Mawar</div>
+            <div class="legend-item"><div class="legend-box" style="background:#fce4ef;border:.5px solid #f0b8d0;"></div>Melati</div>
+            <div class="legend-item"><div class="legend-box" style="background:#e0f7ee;border:.5px solid #9fe1cb;"></div>Kenanga</div>
+          </div>
+        </div>
+        <div class="cal-grid" id="cal-daynames"></div>
+        <div class="cal-grid" id="cal-cells"></div>
+      </div>
+      <div id="day-detail-panel"></div>
+    </div>
+  </div>
+
+  <!-- ═══ BOOKING ═══ -->
+  <div class="section" id="sec-booking">
+    <div class="page-heading"><h2>Form Pemesanan</h2><p>Isi detail booking ruang meeting kamu</p></div>
+    <div class="form-grid">
+      <div class="form-card">
+        <p class="form-section-title">Detail Booking</p>
+        <div class="field"><label>Nama Pemesan</label><input type="text" id="f-name" placeholder="Contoh: Budi Santoso"/></div>
+        <div class="field"><label>Divisi / Tim</label><input type="text" id="f-div" placeholder="Contoh: Marketing"/></div>
+        <div class="field">
+          <label>Pilih Ruangan</label>
+          <select id="f-room">
+            <option value="">— Pilih ruangan —</option>
+            <option value="Mawar">🌹 Ruang Mawar (10 orang)</option>
+            <option value="Melati">🌸 Ruang Melati (6 orang)</option>
+            <option value="Kenanga">🌼 Ruang Kenanga (4 orang)</option>
+          </select>
+        </div>
+        <div class="row2">
+          <div class="field"><label>Tanggal</label><input type="date" id="f-date"/></div>
+          <div class="field">
+            <label>Jam Mulai</label>
+            <select id="f-start">
+              <option value="8">08:00</option><option value="9">09:00</option><option value="10">10:00</option>
+              <option value="11">11:00</option><option value="12">12:00</option><option value="13">13:00</option>
+              <option value="14">14:00</option><option value="15">15:00</option><option value="16">16:00</option>
+            </select>
+          </div>
+        </div>
+        <div class="field">
+          <label>Durasi</label>
+          <select id="f-dur">
+            <option value="1">1 jam</option><option value="2">2 jam</option>
+            <option value="3">3 jam</option><option value="4">4 jam (setengah hari)</option>
+          </select>
+        </div>
+        <div class="field"><label>Agenda / Keperluan</label><textarea id="f-desc" placeholder="Contoh: Rapat koordinasi tim marketing Q3..."></textarea></div>
+      </div>
+      <div>
+        <div class="form-card" style="margin-bottom:1rem;">
+          <p class="form-section-title">Ringkasan Booking</p>
+          <div class="preview-card">
+            <p class="pv-title">Preview akan muncul setelah form diisi</p>
+            <div class="preview-row"><svg class="icon-sm" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M14 2H6a1 1 0 00-1 1v18a1 1 0 001 1h12a1 1 0 001-1V8z"/><path d="M14 2v6h6"/></svg><span id="pv-room">—</span></div>
+            <div class="preview-row"><svg class="icon-sm" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg><span id="pv-date">—</span></div>
+            <div class="preview-row"><svg class="icon-sm" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg><span id="pv-time">—</span></div>
+            <div class="preview-row"><svg class="icon-sm" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg><span id="pv-name">—</span></div>
+          </div>
+          <button class="btn-submit" id="btn-submit" onclick="submitBooking()">
+            <svg class="icon" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M9 16l2 2 4-4"/></svg>
+            Konfirmasi Booking
+          </button>
+        </div>
+        <div class="form-card">
+          <p class="form-section-title" style="margin-bottom:8px;">Info Ruangan</p>
+          <div id="room-info-detail" style="font-size:13px;color:var(--text-secondary);line-height:1.7;">Pilih ruangan untuk melihat info kapasitas dan fasilitas.</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ═══ RIWAYAT ═══ -->
+  <div class="section" id="sec-riwayat">
+    <div class="page-heading"><h2>Riwayat Booking</h2><p>Semua pemesanan yang telah dikonfirmasi</p></div>
+    <div class="stats-bar" id="stats-bar"></div>
+    <div class="filter-bar">
+      <button class="filter-btn active" onclick="setFilter('semua',this)">Semua</button>
+      <button class="filter-btn" onclick="setFilter('Mawar',this)">🌹 Mawar</button>
+      <button class="filter-btn" onclick="setFilter('Melati',this)">🌸 Melati</button>
+      <button class="filter-btn" onclick="setFilter('Kenanga',this)">🌼 Kenanga</button>
+    </div>
+    <div class="booking-list" id="booking-list"></div>
+  </div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* ══════════════════════════════════════════════════
+   KONFIGURASI API
+══════════════════════════════════════════════════ */
+let API_URL = localStorage.getItem('roomBookingApiUrl') || '';
+
+/* ══════════════════════════════════════════════════
+   DATA
+══════════════════════════════════════════════════ */
+const rooms = [
+  { id:'Mawar',   name:'Ruang Mawar',   cap:'10 orang', emoji:'🌹', color:'#E24B4A', info:'📍 Lantai 2 &bull; Kapasitas 10 orang &bull; Proyektor ✓ &bull; AC ✓ &bull; Whiteboard ✓ &bull; TV 65" ✓' },
+  { id:'Melati',  name:'Ruang Melati',  cap:'6 orang',  emoji:'🌸', color:'#D4537E', info:'📍 Lantai 2 &bull; Kapasitas 6 orang &bull; Proyektor ✓ &bull; AC ✓ &bull; Whiteboard ✓' },
+  { id:'Kenanga', name:'Ruang Kenanga', cap:'4 orang',  emoji:'🌼', color:'#1D9E75', info:'📍 Lantai 1 &bull; Kapasitas 4 orang &bull; TV 43" ✓ &bull; AC ✓ &bull; Cocok untuk diskusi kecil' },
+];
+const hours = [8,9,10,11,12,13,14,15,16,17];
+
+let bookings       = [];   // ← data dari spreadsheet
+let currentOffset  = 0;
+let selectedRoom   = 'Mawar';
+let filterRoom     = 'semua';
+let viewMode       = 'harian';
+let calYear, calMonth, selectedCalDate = null;
+
+const todayObj = new Date();
+calYear  = todayObj.getFullYear();
+calMonth = todayObj.getMonth();
+
+/* ══════════════════════════════════════════════════
+   API CONFIG
+══════════════════════════════════════════════════ */
+function saveApiUrl() {
+  const val = document.getElementById('api-url-input').value.trim();
+  if (!val) { showToast('URL tidak boleh kosong!', 'error'); return; }
+  if (!val.startsWith('https://script.google.com')) {
+    showToast('URL harus dari script.google.com', 'error'); return;
+  }
+  API_URL = val;
+  localStorage.setItem('roomBookingApiUrl', val);
+  syncData();
+}
+
+function updateConfigBanner() {
+  const banner = document.getElementById('config-banner');
+  const input  = document.getElementById('api-url-input');
+  const dot    = document.getElementById('conn-dot');
+  if (API_URL) {
+    input.value = API_URL;
+    banner.classList.add('connected');
+    dot.className = 'conn-dot ok';
+    dot.title = 'Terhubung ke spreadsheet';
+  } else {
+    banner.classList.remove('connected');
+    dot.className = 'conn-dot pending';
+    dot.title = 'Belum terhubung';
+  }
+}
+
+/* ══════════════════════════════════════════════════
+   SYNC / API CALLS
+══════════════════════════════════════════════════ */
+function setLoading(show, msg) {
+  const el = document.getElementById('loading-overlay');
+  el.classList.toggle('hidden', !show);
+  if (msg) document.getElementById('loading-msg').textContent = msg;
+}
+
+async function syncData() {
+  if (!API_URL) { showToast('Hubungkan ke spreadsheet dulu!', 'error'); return; }
+
+  const btn = document.getElementById('sync-btn');
+  btn.classList.add('syncing');
+  setLoading(true, 'Mengambil data dari spreadsheet...');
+
+  try {
+    const res  = await fetch(`${API_URL}?action=getBookings`);
+    const data = await res.json();
+    if (data.status === 'ok') {
+      bookings = data.bookings;
+      renderJadwal();
+      renderRiwayat();
+      showToast(`Data berhasil disinkronisasi (${bookings.length} booking)`, 'success');
+      document.getElementById('conn-dot').className = 'conn-dot ok';
+    } else {
+      throw new Error(data.message || 'Gagal mengambil data');
+    }
+  } catch (err) {
+    showToast('Gagal sync: ' + err.message, 'error');
+    document.getElementById('conn-dot').className = 'conn-dot err';
+    document.getElementById('conn-dot').title = 'Error: ' + err.message;
+  } finally {
+    btn.classList.remove('syncing');
+    setLoading(false);
+  }
+}
+
+async function apiAddBooking(payload) {
+  const res  = await fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action: 'addBooking', ...payload })
+  });
+  return res.json();
+}
+
+async function apiCancelBooking(id) {
+  const res  = await fetch(API_URL, {
+    method: 'POST',
+    body: JSON.stringify({ action: 'cancelBooking', id })
+  });
+  return res.json();
+}
+
+/* ══════════════════════════════════════════════════
+   UTILS
+══════════════════════════════════════════════════ */
+function dayStr(off){ const d=new Date(); d.setDate(d.getDate()+(off||0)); return d.toISOString().split('T')[0]; }
+function todayStr(){ return new Date().toISOString().split('T')[0]; }
+function fmtDate(s){ const d=new Date(s+'T00:00:00'); const dy=['Minggu','Senin','Selasa','Rabu','Kamis','Jumat','Sabtu']; const mo=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember']; return `${dy[d.getDay()]}, ${d.getDate()} ${mo[d.getMonth()]} ${d.getFullYear()}`; }
+function fmtShort(s){ const d=new Date(s+'T00:00:00'); const mo=['Jan','Feb','Mar','Apr','Mei','Jun','Jul','Ags','Sep','Okt','Nov','Des']; return `${d.getDate()} ${mo[d.getMonth()]} ${d.getFullYear()}`; }
+function pad(n){ return String(n).padStart(2,'0'); }
+function makeDate(y,m,d){ return `${y}-${pad(m+1)}-${pad(d)}`; }
+
+/* ══════════════════════════════════════════════════
+   SVG HELPERS
+══════════════════════════════════════════════════ */
+function svgLock(){ return `<svg class="icon-sm" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="5" y="11" width="14" height="10" rx="2"/><path d="M8 11V7a4 4 0 018 0v4"/></svg>`; }
+function svgPlus(){ return `<svg class="icon-sm" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M12 5v14M5 12h14"/></svg>`; }
+function svgX()   { return `<svg class="icon-sm" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M18 6L6 18M6 6l12 12"/></svg>`; }
+function svgBldg(){ return `<svg class="icon-lg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="3" width="18" height="18" rx="2"/><path d="M9 22V12h6v10M8 7h1m3 0h1m-5 4h1m3 0h1"/></svg>`; }
+function svgDoor(){ return `<svg class="icon-lg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="4" y="2" width="16" height="20" rx="2"/><circle cx="15" cy="12" r="1" fill="currentColor" stroke="none"/></svg>`; }
+function svgLeaf(){ return `<svg class="icon-lg" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M12 22V12"/><path d="M12 12C12 7 7 4 3 6c2 4 5 6 9 6z"/><path d="M12 12c0-5 5-8 9-6-2 4-5 6-9 6z"/></svg>`; }
+function svgCal() { return `<svg class="icon-sm" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18"/></svg>`; }
+function svgClock(){ return `<svg class="icon-sm" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><path d="M12 7v5l3 3"/></svg>`; }
+function svgBag() { return `<svg class="icon-sm" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="2" y="7" width="20" height="14" rx="2"/><path d="M16 7V5a2 2 0 00-2-2h-4a2 2 0 00-2 2v2"/></svg>`; }
+function svgCalOff(){ return `<svg style="width:40px;height:40px;opacity:.3" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><path d="M4.2 4.2A2 2 0 003 6v14a2 2 0 002 2h14a2 2 0 001.8-1.2M8 2v2m8-2v2M3 10h4m4 0h10M3 3l18 18"/></svg>`; }
+
+/* ══════════════════════════════════════════════════
+   TABS
+══════════════════════════════════════════════════ */
+function switchTab(id){
+  document.querySelectorAll('.tab').forEach((t,i)=>t.classList.toggle('active',['jadwal','booking','riwayat'][i]===id));
+  document.querySelectorAll('.section').forEach(s=>s.classList.remove('active'));
+  document.getElementById('sec-'+id).classList.add('active');
+  if(id==='riwayat') renderRiwayat();
+  if(id==='jadwal')  renderJadwal();
+}
+
+/* ══════════════════════════════════════════════════
+   VIEW TOGGLE
+══════════════════════════════════════════════════ */
+function setView(v){
+  viewMode=v;
+  document.getElementById('vt-harian').classList.toggle('active',v==='harian');
+  document.getElementById('vt-bulanan').classList.toggle('active',v==='bulanan');
+  document.getElementById('view-harian').style.display  = v==='harian' ? '' : 'none';
+  document.getElementById('view-bulanan').style.display = v==='bulanan' ? '' : 'none';
+  document.getElementById('rooms-grid').style.display   = v==='harian' ? '' : 'none';
+  renderJadwal();
+}
+
+function navPrev(){ if(viewMode==='harian'){currentOffset--;}else{calMonth--;if(calMonth<0){calMonth=11;calYear--;}} renderJadwal(); }
+function navNext(){ if(viewMode==='harian'){currentOffset++;}else{calMonth++;if(calMonth>11){calMonth=0;calYear++;}} renderJadwal(); }
+function goToday(){ currentOffset=0; const t=new Date(); calYear=t.getFullYear(); calMonth=t.getMonth(); selectedCalDate=null; renderJadwal(); }
+
+/* ══════════════════════════════════════════════════
+   RENDER JADWAL
+══════════════════════════════════════════════════ */
+function renderJadwal(){ renderRoomsGrid(); if(viewMode==='harian') renderHarian(); else renderBulanan(); }
+
+function renderRoomsGrid(){
+  if(viewMode!=='harian'){ document.getElementById('rooms-grid').innerHTML=''; return; }
+  const ds=dayStr(currentOffset);
+  document.getElementById('rooms-grid').innerHTML=rooms.map(r=>{
+    const booked=bookings.filter(b=>b.room===r.id&&b.date===ds&&b.status==='ok').reduce((s,b)=>s+b.dur,0);
+    const avail=hours.length-booked; const ok=avail>hours.length*0.5;
+    return `<div class="room-card ${r.id===selectedRoom?'selected':''}" onclick="selectRoom('${r.id}')">
+      <div class="room-header"><span class="room-dot" style="background:${r.color}"></span><span class="room-name">${r.emoji} ${r.name}</span></div>
+      <div class="room-meta"><svg class="icon-sm" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><circle cx="9" cy="8" r="3"/><path d="M2 20c0-3 3-5.5 7-5.5s7 2.5 7 5.5"/><circle cx="17" cy="8" r="3"/><path d="M22 20c0-3-2-5-5-5"/></svg>${r.cap}</div>
+      <div class="room-avail ${ok?'ok':'partial'}">${ok?'✔':'◑'} ${avail} slot tersedia</div>
+    </div>`;
+  }).join('');
+}
+
+function renderHarian(){
+  const ds=dayStr(currentOffset); const off=currentOffset;
+  document.getElementById('date-label').textContent=off===0?`Hari ini — ${fmtDate(ds)}`:off===1?`Besok — ${fmtDate(ds)}`:off===-1?`Kemarin — ${fmtDate(ds)}`:fmtDate(ds);
+  document.getElementById('tl-room-name').textContent=rooms.find(r=>r.id===selectedRoom)?.name||'—';
+  document.getElementById('timeline').innerHTML=hours.map(h=>{
+    const bk=bookings.find(b=>b.room===selectedRoom&&b.date===ds&&h>=b.start&&h<b.start+b.dur&&b.status==='ok');
+    if(bk){ const lbl=h===bk.start?`${bk.name.split(' ')[0]} (${bk.div})`:'···'; return `<div class="time-row"><span class="time-label">${pad(h)}:00</span><div class="slot-track"><button class="slot booked" disabled title="${bk.desc}">${svgLock()} ${lbl}</button></div></div>`; }
+    return `<div class="time-row"><span class="time-label">${pad(h)}:00</span><div class="slot-track"><button class="slot free" onclick="quickBook('${ds}',${h})">${svgPlus()} Tersedia</button></div></div>`;
+  }).join('');
+}
+
+function selectRoom(id){ selectedRoom=id; renderJadwal(); }
+
+function quickBook(date,hour){
+  switchTab('booking');
+  document.getElementById('f-room').value=selectedRoom;
+  document.getElementById('f-date').value=date;
+  document.getElementById('f-start').value=hour;
+  updatePreview(); updateRoomInfo();
+  showToast('Slot dipilih! Lengkapi form di bawah 👇','success');
+  window.scrollTo({top:0,behavior:'smooth'});
+}
+
+/* ══════════════════════════════════════════════════
+   RENDER BULANAN
+══════════════════════════════════════════════════ */
+function renderBulanan(){
+  const MONTHS=['Januari','Februari','Maret','April','Mei','Juni','Juli','Agustus','September','Oktober','November','Desember'];
+  const DAYS=['Min','Sen','Sel','Rab','Kam','Jum','Sab'];
+  document.getElementById('date-label').textContent=`${MONTHS[calMonth]} ${calYear}`;
+  document.getElementById('cal-month-label').textContent=`${MONTHS[calMonth]} ${calYear}`;
+  document.getElementById('cal-daynames').innerHTML=DAYS.map((d,i)=>`<div class="cal-dayname${i===0||i===6?' weekend':''}">${d}</div>`).join('');
+
+  const firstDay=new Date(calYear,calMonth,1).getDay();
+  const daysInMonth=new Date(calYear,calMonth+1,0).getDate();
+  const daysInPrev=new Date(calYear,calMonth,0).getDate();
+  const todayISO=todayStr();
+  const rmCls={Mawar:'mawar',Melati:'melati',Kenanga:'kenanga'};
+
+  let cells='';
+  for(let i=0;i<firstDay;i++) cells+=`<div class="cal-cell other-month"><div class="cal-day-num">${daysInPrev-firstDay+i+1}</div></div>`;
+  for(let d=1;d<=daysInMonth;d++){
+    const ds=makeDate(calYear,calMonth,d);
+    const dow=new Date(ds+'T00:00:00').getDay();
+    const isToday=ds===todayISO; const isSel=ds===selectedCalDate; const isWE=dow===0||dow===6;
+    const dayBk=bookings.filter(b=>b.date===ds&&b.status==='ok');
+    let ev='';
+    dayBk.slice(0,2).forEach(b=>{ ev+=`<div class="cal-event ${rmCls[b.room]||'kenanga'}" title="${b.name}: ${b.desc}">${b.room} ${pad(b.start)}:00</div>`; });
+    if(dayBk.length>2) ev+=`<div class="cal-more">+${dayBk.length-2} lainnya</div>`;
+    const cls=['cal-cell',isToday?'today-cell':'',isSel?'selected-cell':'',isWE?'weekend-cell':''].filter(Boolean).join(' ');
+    cells+=`<div class="${cls}" onclick="selectCalDay('${ds}')"><div class="cal-day-num">${d}</div>${ev}</div>`;
+  }
+  const rem=(firstDay+daysInMonth)%7; if(rem>0) for(let i=1;i<=7-rem;i++) cells+=`<div class="cal-cell other-month"><div class="cal-day-num">${i}</div></div>`;
+  document.getElementById('cal-cells').innerHTML=cells;
+  if(selectedCalDate) renderDayDetail(selectedCalDate);
+}
+
+function selectCalDay(ds){
+  if(selectedCalDate===ds){ selectedCalDate=null; document.getElementById('day-detail-panel').innerHTML=''; renderBulanan(); return; }
+  selectedCalDate=ds; renderBulanan(); renderDayDetail(ds);
+  document.getElementById('day-detail-panel').scrollIntoView({behavior:'smooth',block:'nearest'});
+}
+
+function renderDayDetail(ds){
+  const roomCards=rooms.map(r=>{
+    const dayBk=bookings.filter(b=>b.room===r.id&&b.date===ds&&b.status==='ok');
+    const bookedH=new Set(); dayBk.forEach(b=>{for(let h=b.start;h<b.start+b.dur;h++)bookedH.add(h);});
+    const freeH=hours.filter(h=>!bookedH.has(h));
+    let sl='';
+    dayBk.forEach(b=>{sl+=`<div class="dd-slot-row dd-slot-booked"><span class="dd-dot" style="background:#E24B4A"></span>${svgLock()} ${pad(b.start)}:00–${pad(b.start+b.dur)}:00 &nbsp;${b.name.split(' ')[0]}</div>`;});
+    freeH.slice(0,3).forEach(h=>{sl+=`<div class="dd-slot-row dd-slot-free"><span class="dd-dot" style="background:#1D9E75"></span>${svgPlus()} ${pad(h)}:00 — tersedia</div>`;});
+    if(freeH.length>3) sl+=`<div style="font-size:11px;color:var(--text-muted)">+${freeH.length-3} slot lainnya tersedia</div>`;
+    return `<div class="dd-room"><div class="dd-room-title"><span style="font-size:16px;">${r.emoji}</span>${r.name}</div>${sl}${freeH.length?`<button class="dd-book-btn" onclick="quickBookFromCal('${ds}','${r.id}',${freeH[0]})">${svgPlus()} Booking sekarang</button>`:'<div style="font-size:11px;color:var(--coral-600);margin-top:6px;">✗ Penuh hari ini</div>'}</div>`;
+  }).join('');
+  document.getElementById('day-detail-panel').innerHTML=`<div class="day-detail"><div class="day-detail-header"><strong>${fmtDate(ds)}</strong><button class="day-detail-close" onclick="closeDayDetail()">${svgX()}</button></div><div class="day-detail-body">${roomCards}</div></div>`;
+}
+
+function closeDayDetail(){ selectedCalDate=null; document.getElementById('day-detail-panel').innerHTML=''; renderBulanan(); }
+function quickBookFromCal(date,room,hour){ selectedRoom=room; switchTab('booking'); document.getElementById('f-room').value=room; document.getElementById('f-date').value=date; document.getElementById('f-start').value=hour; updatePreview(); updateRoomInfo(); showToast('Slot dipilih! Lengkapi form di bawah 👇','success'); window.scrollTo({top:0,behavior:'smooth'}); }
+
+/* ══════════════════════════════════════════════════
+   BOOKING FORM
+══════════════════════════════════════════════════ */
+function updatePreview(){
+  const room=document.getElementById('f-room').value;
+  const date=document.getElementById('f-date').value;
+  const start=parseInt(document.getElementById('f-start').value);
+  const dur=parseInt(document.getElementById('f-dur').value);
+  const name=document.getElementById('f-name').value||'—';
+  const div=document.getElementById('f-div').value;
+  document.getElementById('pv-room').textContent=room?(rooms.find(r=>r.id===room)?.name||'—'):'—';
+  document.getElementById('pv-date').textContent=date?fmtShort(date):'—';
+  document.getElementById('pv-time').textContent=(room&&date)?`${pad(start)}:00 – ${pad(start+dur)}:00`:'—';
+  document.getElementById('pv-name').textContent=div?`${name} (${div})`:name;
+}
+function updateRoomInfo(){
+  const r=rooms.find(r=>r.id===document.getElementById('f-room').value);
+  document.getElementById('room-info-detail').innerHTML=r?r.info:'Pilih ruangan untuk melihat info kapasitas dan fasilitas.';
+}
+['f-name','f-div','f-room','f-date','f-start','f-dur'].forEach(id=>{
+  const el=document.getElementById(id); if(!el) return;
+  el.addEventListener('input',updatePreview);
+  el.addEventListener('change',()=>{ updatePreview(); if(id==='f-room') updateRoomInfo(); });
+});
+
+async function submitBooking(){
+  const name=document.getElementById('f-name').value.trim();
+  const div=document.getElementById('f-div').value.trim()||'Staff';
+  const room=document.getElementById('f-room').value;
+  const date=document.getElementById('f-date').value;
+  const start=parseInt(document.getElementById('f-start').value);
+  const dur=parseInt(document.getElementById('f-dur').value);
+  const desc=document.getElementById('f-desc').value.trim();
+
+  if(!name){showToast('Nama pemesan tidak boleh kosong!','error');return;}
+  if(!room){showToast('Pilih ruangan terlebih dahulu!','error');return;}
+  if(!date){showToast('Tanggal harus diisi!','error');return;}
+  if(isNaN(start)){showToast('Pilih jam mulai!','error');return;}
+
+  // Cek konflik lokal dulu
+  const conflict=bookings.find(b=>b.room===room&&b.date===date&&b.status==='ok'&&!(start>=b.start+b.dur||start+dur<=b.start));
+  if(conflict){showToast(`Waktu bentrok dengan booking ${conflict.name}!`,'error');return;}
+
+  const btn=document.getElementById('btn-submit');
+  btn.disabled=true;
+  btn.textContent='Menyimpan...';
+
+  if(API_URL){
+    // ── Simpan ke Google Sheets ──
+    setLoading(true, 'Menyimpan ke spreadsheet...');
+    try {
+      const res=await apiAddBooking({name,div,room,date,start,dur,desc:desc||'Tidak ada keterangan'});
+      if(res.status==='ok'){
+        bookings.push({id:res.id,name,div,room,date,start,dur,desc:desc||'Tidak ada keterangan',status:'ok'});
+        clearForm();
+        showToast('Booking tersimpan ke spreadsheet! 🎉','success');
+        renderJadwal();
+      } else if(res.status==='conflict'){
+        showToast(res.message,'error');
+      } else {
+        throw new Error(res.message||'Gagal menyimpan');
+      }
+    } catch(err){
+      showToast('Error: '+err.message,'error');
+    } finally {
+      setLoading(false);
+    }
+  } else {
+    // ── Simpan lokal saja (offline mode) ──
+    bookings.push({id:Date.now(),name,div,room,date,start,dur,desc:desc||'Tidak ada keterangan',status:'ok'});
+    clearForm();
+    showToast('Booking disimpan (offline — hubungkan spreadsheet untuk sinkronisasi)','info');
+    renderJadwal();
+  }
+
+  btn.disabled=false;
+  btn.innerHTML=`<svg class="icon" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" viewBox="0 0 24 24"><rect x="3" y="4" width="18" height="18" rx="2"/><path d="M16 2v4M8 2v4M3 10h18M9 16l2 2 4-4"/></svg>Konfirmasi Booking`;
+}
+
+function clearForm(){
+  ['f-name','f-div','f-desc'].forEach(id=>document.getElementById(id).value='');
+  document.getElementById('f-room').value='';
+  updatePreview(); updateRoomInfo();
+}
+
+/* ══════════════════════════════════════════════════
+   RIWAYAT
+══════════════════════════════════════════════════ */
+function setFilter(val,btn){ filterRoom=val; document.querySelectorAll('.filter-btn').forEach(b=>b.classList.toggle('active',b===btn)); renderRiwayat(); }
+
+async function cancelBooking(id){
+  if(!confirm('Yakin ingin membatalkan booking ini?')) return;
+  const b=bookings.find(b=>b.id===id); if(!b) return;
+
+  if(API_URL){
+    setLoading(true,'Membatalkan booking...');
+    try {
+      const res=await apiCancelBooking(id);
+      if(res.status==='ok'){ b.status='cancelled'; renderRiwayat(); renderJadwal(); showToast('Booking dibatalkan.','error'); }
+      else throw new Error(res.message);
+    } catch(err){ showToast('Gagal membatalkan: '+err.message,'error'); }
+    finally { setLoading(false); }
+  } else {
+    b.status='cancelled'; renderRiwayat(); renderJadwal(); showToast('Booking dibatalkan.','error');
+  }
+}
+
+function renderRiwayat(){
+  const active=bookings.filter(b=>b.status==='ok');
+  const todayBk=active.filter(b=>b.date===todayStr());
+  document.getElementById('stats-bar').innerHTML=`
+    <div class="stat-card highlight"><div class="stat-number">${active.length}</div><div class="stat-label">Total Booking Aktif</div></div>
+    <div class="stat-card"><div class="stat-number">${todayBk.length}</div><div class="stat-label">Booking Hari Ini</div></div>
+    <div class="stat-card"><div class="stat-number">${rooms.length}</div><div class="stat-label">Ruangan Tersedia</div></div>`;
+
+  const iconMap={Mawar:{cls:'bi-amber',svg:svgBldg()},Melati:{cls:'bi-blue',svg:svgDoor()},Kenanga:{cls:'bi-green',svg:svgLeaf()}};
+  const filtered=[...bookings].filter(b=>filterRoom==='semua'||b.room===filterRoom).sort((a,b)=>a.date!==b.date?b.date.localeCompare(a.date):b.start-a.start);
+  const list=document.getElementById('booking-list');
+  if(!filtered.length){ list.innerHTML=`<div class="empty-state">${svgCalOff()}<p>Belum ada booking${filterRoom!=='semua'?' untuk ruangan ini':''}.</p></div>`; return; }
+  list.innerHTML=filtered.map(b=>{
+    const m=iconMap[b.room]||{cls:'bi-green',svg:svgBldg()};
+    const cancelled=b.status==='cancelled';
+    return `<div class="booking-item" style="${cancelled?'opacity:.55;':''}">
+      <div class="booking-icon ${m.cls}">${m.svg}</div>
+      <div class="booking-info">
+        <div class="b-title">${b.name} — Ruang ${b.room}</div>
+        <div class="b-sub">${svgBag()} ${b.div} &nbsp;·&nbsp; ${svgCal()} ${fmtShort(b.date)} &nbsp;·&nbsp; ${svgClock()} ${pad(b.start)}:00–${pad(b.start+b.dur)}:00</div>
+        <div class="b-sub" style="color:var(--text-muted);margin-top:2px;">${b.desc}</div>
+      </div>
+      <span class="booking-status ${cancelled?'status-cancel':'status-ok'}">${cancelled?'Dibatalkan':'Confirmed'}</span>
+      ${!cancelled?`<button class="cancel-btn" onclick="cancelBooking('${b.id}')" title="Batalkan">${svgX()}</button>`:''}
+    </div>`;
+  }).join('');
+}
+
+/* ══════════════════════════════════════════════════
+   TOAST
+══════════════════════════════════════════════════ */
+function showToast(msg,type){ const t=document.getElementById('toast'); t.textContent=msg; t.className=`toast ${type} show`; clearTimeout(t._t); t._t=setTimeout(()=>t.classList.remove('show'),3800); }
+
+/* ══════════════════════════════════════════════════
+   INIT
+══════════════════════════════════════════════════ */
+const today=new Date().toISOString().split('T')[0];
+document.getElementById('f-date').value=today;
+document.getElementById('f-date').min=today;
+document.getElementById('header-date-display').textContent=fmtDate(today);
+updateConfigBanner();
+renderJadwal();
+renderRiwayat();
+
+// Auto-sync jika URL sudah tersimpan
+if(API_URL){ setTimeout(syncData, 500); }
+</script>
+</body>
+</html>
